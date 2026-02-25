@@ -14,8 +14,10 @@ from gemini_live import GeminiLive
 # Load environment variables
 load_dotenv()
 
-# Configure logging
+# Configure logging - DEBUG for our modules, INFO for everything else
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("gemini_live").setLevel(logging.DEBUG)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -106,7 +108,8 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         await run_session()
     except Exception as e:
-        logger.error(f"Error in Gemini session: {e}")
+        import traceback
+        logger.error(f"Error in Gemini session: {type(e).__name__}: {e}\n{traceback.format_exc()}")
     finally:
         receive_task.cancel()
         # Ensure websocket is closed if not already

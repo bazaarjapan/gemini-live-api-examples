@@ -323,18 +323,18 @@ class GeminiLiveAPI {
         },
         systemInstruction: { parts: [{ text: this.systemInstructions }] },
         tools: { functionDeclarations: tools },
-        proactivity: this.proactivity,
+        // proactivity: this.proactivity,
 
-        realtimeInputConfig: {
-          automaticActivityDetection: {
-            disabled: this.automaticActivityDetection.disabled,
-            silenceDurationMs: this.automaticActivityDetection.silence_duration_ms,
-            prefixPaddingMs: this.automaticActivityDetection.prefix_padding_ms,
-            endOfSpeechSensitivity: this.automaticActivityDetection.end_of_speech_sensitivity,
-            startOfSpeechSensitivity: this.automaticActivityDetection.start_of_speech_sensitivity,
-          },
-          activityHandling: this.activityHandling,
-        },
+        // realtimeInputConfig: {
+        //   automaticActivityDetection: {
+        //     disabled: this.automaticActivityDetection.disabled,
+        //     silenceDurationMs: this.automaticActivityDetection.silence_duration_ms,
+        //     prefixPaddingMs: this.automaticActivityDetection.prefix_padding_ms,
+        //     endOfSpeechSensitivity: this.automaticActivityDetection.end_of_speech_sensitivity,
+        //     startOfSpeechSensitivity: this.automaticActivityDetection.start_of_speech_sensitivity,
+        //   },
+        //   activityHandling: this.activityHandling,
+        // },
       },
     };
 
@@ -356,9 +356,9 @@ class GeminiLiveAPI {
     }
 
     // Add affective dialog if enabled
-    if (this.enableAffectiveDialog) {
-      sessionSetupMessage.setup.generationConfig.enableAffectiveDialog = true;
-    }
+    // if (this.enableAffectiveDialog) {
+    //   sessionSetupMessage.setup.generationConfig.enableAffectiveDialog = true;
+    // }
 
     // Store the setup message for later access
     this.lastSetupMessage = sessionSetupMessage;
@@ -394,16 +394,15 @@ class GeminiLiveAPI {
   }
 
   sendRealtimeInputMessage(data, mimeType) {
-    const message = {
-      realtimeInput: {
-        mediaChunks: [
-          {
-            mimeType: mimeType,
-            data: data,
-          },
-        ],
-      },
-    };
+    const blob = { mimeType, data };
+    const message = { realtimeInput: {} };
+
+    if (mimeType.startsWith("audio/")) {
+      message.realtimeInput.audio = blob;
+    } else if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
+      message.realtimeInput.video = blob;
+    }
+
     this.sendMessage(message);
     this.addToBytesSent(data);
   }
