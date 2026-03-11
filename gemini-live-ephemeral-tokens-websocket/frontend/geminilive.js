@@ -368,18 +368,12 @@ class GeminiLiveAPI {
   }
 
   sendTextMessage(text) {
-    const textMessage = {
-      clientContent: {
-        turns: [
-          {
-            role: "user",
-            parts: [{ text: text }],
-          },
-        ],
-        turnComplete: true,
+    const message = {
+      realtimeInput: {
+        text: text,
       },
     };
-    this.sendMessage(textMessage);
+    this.sendMessage(message);
   }
 
   sendToolResponse(toolCallId, response) {
