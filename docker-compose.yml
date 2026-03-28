@@ -1,0 +1,14 @@
+services:
+  gemini-live-web:
+    build:
+      context: ./gemini-live-genai-python-sdk
+      dockerfile: Dockerfile
+    container_name: gemini-live-web
+    env_file:
+      - .env
+    environment:
+      PORT: 8000
+      MODEL: ${MODEL:-gemini-3.1-flash-live-preview}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

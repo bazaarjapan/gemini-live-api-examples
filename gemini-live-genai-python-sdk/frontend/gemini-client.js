@@ -10,9 +10,10 @@ class GeminiClient {
     this.onError = config.onError;
   }
 
-  connect() {
+  connect(voiceName = "Kore") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const params = new URLSearchParams({ voice: voiceName });
+    const wsUrl = `${protocol}//${window.location.host}/ws?${params.toString()}`;
 
     this.websocket = new WebSocket(wsUrl);
     this.websocket.binaryType = "arraybuffer";

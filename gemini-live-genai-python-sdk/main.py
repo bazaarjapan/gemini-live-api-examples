@@ -9,7 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from gemini_live import GeminiLive
+from gemini_live import ALLOWED_VOICES, GeminiLive
 
 # Load environment variables
 load_dotenv()
@@ -62,8 +62,14 @@ async def websocket_endpoint(websocket: WebSocket):
         # The event queue handles the JSON message, but we might want to do something else here
         pass
 
+    requested_voice = websocket.query_params.get("voice", "Kore")
+    voice_name = requested_voice if requested_voice in ALLOWED_VOICES else "Kore"
+
     gemini_client = GeminiLive(
-        api_key=GEMINI_API_KEY, model=MODEL, input_sample_rate=16000
+        api_key=GEMINI_API_KEY,
+        model=MODEL,
+        input_sample_rate=16000,
+        voice_name=voice_name,
     )
 
     async def receive_from_client():

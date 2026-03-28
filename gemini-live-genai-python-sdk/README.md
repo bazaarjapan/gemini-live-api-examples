@@ -18,6 +18,23 @@ uv pip install -r requirements.txt
 uv run main.py
 ```
 
+### Docker
+
+From the repository root, you can run this sample in Docker:
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+The container reads `GEMINI_API_KEY` from the root `.env` file and exposes the app at `http://localhost:8000`.
+
+To stop it:
+
+```bash
+docker compose down
+```
+
 ### 2. Frontend
 
 Open your browser and navigate to:

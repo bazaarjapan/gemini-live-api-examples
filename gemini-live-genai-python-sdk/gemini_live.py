@@ -7,11 +7,13 @@ logger = logging.getLogger(__name__)
 from google import genai
 from google.genai import types
 
+ALLOWED_VOICES = {"Puck", "Charon", "Kore", "Fenrir", "Aoede"}
+
 class GeminiLive:
     """
     Handles the interaction with the Gemini Live API.
     """
-    def __init__(self, api_key, model, input_sample_rate, tools=None, tool_mapping=None):
+    def __init__(self, api_key, model, input_sample_rate, voice_name="Kore", tools=None, tool_mapping=None):
         """
         Initializes the GeminiLive client.
 
@@ -25,6 +27,7 @@ class GeminiLive:
         self.api_key = api_key
         self.model = model
         self.input_sample_rate = input_sample_rate
+        self.voice_name = voice_name if voice_name in ALLOWED_VOICES else "Kore"
         self.client = genai.Client(api_key=api_key)
         self.tools = tools or []
         self.tool_mapping = tool_mapping or {}
@@ -35,11 +38,11 @@ class GeminiLive:
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name="Puck"
+                        voice_name=self.voice_name
                     )
                 )
             ),
-            system_instruction=types.Content(parts=[types.Part(text="You are a helpful AI assistant. Keep your responses concise. Speak in a friendly Irish accent. You can see the user's camera or screen which is shared as realtime input images with you.")]),
+            system_instruction=types.Content(parts=[types.Part(text="You are a helpful AI assistant for live conversation demos. Always respond in natural Japanese only. Keep responses concise, clear, and conversational. Do not switch to English unless the user explicitly asks for translation. You can see the user's camera or screen which is shared as realtime input images with you.")]),
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
             realtime_input_config=types.RealtimeInputConfig(
@@ -48,7 +51,7 @@ class GeminiLive:
             tools=self.tools,
         )
         
-        logger.info(f"Connecting to Gemini Live with model={self.model}")
+        logger.info(f"Connecting to Gemini Live with model={self.model}, voice={self.voice_name}")
         try:
           async with self.client.aio.live.connect(model=self.model, config=config) as session:
             logger.info("Gemini Live session opened successfully")

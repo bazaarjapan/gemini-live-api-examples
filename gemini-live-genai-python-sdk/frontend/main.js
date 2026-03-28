@@ -1,6 +1,5 @@
-// --- Main Application Logic ---
-
 const statusDiv = document.getElementById("status");
+const statusDetail = document.getElementById("statusDetail");
 const authSection = document.getElementById("auth-section");
 const appSection = document.getElementById("app-section");
 const sessionEndSection = document.getElementById("session-end-section");
@@ -15,76 +14,84 @@ const videoPreview = document.getElementById("video-preview");
 const videoPlaceholder = document.getElementById("video-placeholder");
 const connectBtn = document.getElementById("connectBtn");
 const chatLog = document.getElementById("chat-log");
+const chatEmptyState = document.getElementById("chatEmptyState");
+const voiceSelect = document.getElementById("voiceSelect");
+const voiceDescription = document.getElementById("voiceDescription");
+const sessionVoice = document.getElementById("sessionVoice");
+const sessionHint = document.getElementById("sessionHint");
+const mobileVoicePill = document.getElementById("mobileVoicePill");
+const mobileHintPill = document.getElementById("mobileHintPill");
 
 let currentGeminiMessageDiv = null;
 let currentUserMessageDiv = null;
+let currentMediaMode = null;
 
 const mediaHandler = new MediaHandler();
-const geminiClient = new GeminiClient({
-  onOpen: () => {
-    statusDiv.textContent = "Connected";
-    statusDiv.className = "status connected";
-    authSection.classList.add("hidden");
-    appSection.classList.remove("hidden");
 
-    // Send hidden instruction
-    geminiClient.sendText(
-      `System: Introduce yourself as a demo of the Gemini Live API.
-       Suggest playing with features like the native audio for accents and multilingual support.
-       Keep the intro concise and friendly.`
-    );
+const CONTROL_COPY = {
+  mic: {
+    idle: { title: "マイク開始", subtitle: "話しかける" },
+    active: { title: "マイク停止", subtitle: "音声入力を止める" },
   },
-  onMessage: (event) => {
-    if (typeof event.data === "string") {
-      try {
-        const msg = JSON.parse(event.data);
-        handleJsonMessage(msg);
-      } catch (e) {
-        console.error("Parse error:", e);
-      }
-    } else {
-      mediaHandler.playAudio(event.data);
-    }
+  camera: {
+    idle: { title: "カメラ開始", subtitle: "相手に映像を送る" },
+    active: { title: "カメラ停止", subtitle: "カメラ送信を止める" },
   },
-  onClose: (e) => {
-    console.log("WS Closed:", e);
-    statusDiv.textContent = "Disconnected";
-    statusDiv.className = "status disconnected";
-    showSessionEnd();
+  screen: {
+    idle: { title: "画面共有", subtitle: "作業画面を見せる" },
+    active: { title: "共有停止", subtitle: "画面共有を止める" },
   },
-  onError: (e) => {
-    console.error("WS Error:", e);
-    statusDiv.textContent = "Connection Error";
-    statusDiv.className = "status error";
+  disconnect: {
+    idle: { title: "切断", subtitle: "会話を終了する" },
   },
-});
+};
 
-function handleJsonMessage(msg) {
-  if (msg.type === "interrupted") {
-    mediaHandler.stopAudioPlayback();
-    currentGeminiMessageDiv = null;
-    currentUserMessageDiv = null;
-  } else if (msg.type === "turn_complete") {
-    currentGeminiMessageDiv = null;
-    currentUserMessageDiv = null;
-  } else if (msg.type === "user") {
-    if (currentUserMessageDiv) {
-      currentUserMessageDiv.textContent += msg.text;
-      chatLog.scrollTop = chatLog.scrollHeight;
-    } else {
-      currentUserMessageDiv = appendMessage("user", msg.text);
-    }
-  } else if (msg.type === "gemini") {
-    if (currentGeminiMessageDiv) {
-      currentGeminiMessageDiv.textContent += msg.text;
-      chatLog.scrollTop = chatLog.scrollHeight;
-    } else {
-      currentGeminiMessageDiv = appendMessage("gemini", msg.text);
-    }
+const voiceDescriptions = {
+  Puck: "明るく軽快な話し方",
+  Charon: "落ち着いて低めの話し方",
+  Kore: "やわらかく自然な話し方",
+  Fenrir: "力強くはっきりした話し方",
+  Aoede: "上品でなめらかな話し方",
+};
+
+function setStatus(text, tone, detail) {
+  statusDiv.textContent = text;
+  statusDiv.className = `status ${tone}`;
+  statusDetail.textContent = detail;
+}
+
+function setControlState(button, copy, isActive = false) {
+  button.querySelector(".control-title").textContent = copy.title;
+  button.querySelector(".control-subtitle").textContent = copy.subtitle;
+  button.classList.toggle("is-active", isActive);
+}
+
+function updateVoiceDescription() {
+  const description = voiceDescriptions[voiceSelect.value] || "";
+  voiceDescription.textContent = description;
+  sessionVoice.textContent = `声: ${voiceSelect.value} / ${description}`;
+  mobileVoicePill.textContent = `声: ${voiceSelect.value}`;
+}
+
+function updateSessionHint(text) {
+  sessionHint.textContent = text;
+  mobileHintPill.textContent = text;
+}
+
+function hideEmptyState() {
+  if (chatEmptyState) {
+    chatEmptyState.classList.add("hidden");
+  }
+}
+
+function showEmptyState() {
+  if (chatEmptyState) {
+    chatEmptyState.classList.remove("hidden");
   }
 }
 
 function appendMessage(type, text) {
+  hideEmptyState();
   const msgDiv = document.createElement("div");
   msgDiv.className = `message ${type}`;
   msgDiv.textContent = text;
@@ -93,124 +100,222 @@ function appendMessage(type, text) {
   return msgDiv;
 }
 
-// Connect Button Handler
+function resetControlStates() {
+  setControlState(micBtn, CONTROL_COPY.mic.idle, false);
+  setControlState(cameraBtn, CONTROL_COPY.camera.idle, false);
+  setControlState(screenBtn, CONTROL_COPY.screen.idle, false);
+  setControlState(disconnectBtn, CONTROL_COPY.disconnect.idle, false);
+  currentMediaMode = null;
+}
+
+function stopVisualStream() {
+  mediaHandler.stopVideo(videoPreview);
+  videoPlaceholder.classList.remove("hidden");
+  currentMediaMode = null;
+  setControlState(cameraBtn, CONTROL_COPY.camera.idle, false);
+  setControlState(screenBtn, CONTROL_COPY.screen.idle, false);
+}
+
+function handleJsonMessage(msg) {
+  if (msg.type === "interrupted") {
+    mediaHandler.stopAudioPlayback();
+    currentGeminiMessageDiv = null;
+    currentUserMessageDiv = null;
+    updateSessionHint("割り込みました。続けて話しかけるかテキストを送ってください");
+    return;
+  }
+
+  if (msg.type === "turn_complete") {
+    currentGeminiMessageDiv = null;
+    currentUserMessageDiv = null;
+    updateSessionHint("応答が完了しました。続けて話しかけるかテキストを送ってください");
+    return;
+  }
+
+  if (msg.type === "user") {
+    if (currentUserMessageDiv) {
+      currentUserMessageDiv.textContent += msg.text;
+      chatLog.scrollTop = chatLog.scrollHeight;
+    } else {
+      currentUserMessageDiv = appendMessage("user", msg.text);
+    }
+    return;
+  }
+
+  if (msg.type === "gemini") {
+    if (currentGeminiMessageDiv) {
+      currentGeminiMessageDiv.textContent += msg.text;
+      chatLog.scrollTop = chatLog.scrollHeight;
+    } else {
+      currentGeminiMessageDiv = appendMessage("gemini", msg.text);
+    }
+    return;
+  }
+
+  if (msg.type === "error") {
+    setStatus("接続エラー", "error", msg.error || "セッションでエラーが発生しました");
+    updateSessionHint("接続が不安定です。切断して再接続してください");
+  }
+}
+
+const geminiClient = new GeminiClient({
+  onOpen: () => {
+    setStatus("接続完了", "connected", "マイク開始でライブ会話を始められます");
+    authSection.classList.add("hidden");
+    appSection.classList.remove("hidden");
+    sessionEndSection.classList.add("hidden");
+    updateVoiceDescription();
+    updateSessionHint("まずはマイクを開始して話しかけてください");
+
+    geminiClient.sendText(
+      `System: 日本語で簡潔に自己紹介してください。
+       このデモは Gemini Live API の会話デモであることを伝えてください。
+       現在の声のキャラクターは「${voiceSelect.value}（${voiceDescriptions[voiceSelect.value]}）」です。
+       返答は常に自然な日本語だけを使ってください。`
+    );
+  },
+  onMessage: (event) => {
+    if (typeof event.data === "string") {
+      try {
+        handleJsonMessage(JSON.parse(event.data));
+      } catch (error) {
+        console.error("Parse error:", error);
+      }
+    } else {
+      mediaHandler.playAudio(event.data);
+    }
+  },
+  onClose: () => {
+    setStatus("切断済み", "disconnected", "必要なら新しいセッションを開始してください");
+    showSessionEnd();
+  },
+  onError: () => {
+    setStatus("接続エラー", "error", "ネットワークまたは API 応答を確認してください");
+  },
+});
+
 connectBtn.onclick = async () => {
-  statusDiv.textContent = "Connecting...";
+  setStatus("接続しています...", "connected", "音声セッションを準備しています");
   connectBtn.disabled = true;
 
   try {
-    // Initialize audio context on user gesture
     await mediaHandler.initializeAudio();
-
-    geminiClient.connect();
+    updateVoiceDescription();
+    geminiClient.connect(voiceSelect.value);
   } catch (error) {
     console.error("Connection error:", error);
-    statusDiv.textContent = "Connection Failed: " + error.message;
-    statusDiv.className = "status error";
+    setStatus("接続失敗", "error", error.message || "接続に失敗しました");
     connectBtn.disabled = false;
   }
 };
 
-// UI Controls
 disconnectBtn.onclick = () => {
+  updateSessionHint("セッションを終了しています");
   geminiClient.disconnect();
 };
 
 micBtn.onclick = async () => {
   if (mediaHandler.isRecording) {
     mediaHandler.stopAudio();
-    micBtn.textContent = "Start Mic";
-  } else {
-    try {
-      await mediaHandler.startAudio((data) => {
-        if (geminiClient.isConnected()) {
-          geminiClient.send(data);
-        }
-      });
-      micBtn.textContent = "Stop Mic";
-    } catch (e) {
-      alert("Could not start audio capture");
-    }
+    setControlState(micBtn, CONTROL_COPY.mic.idle, false);
+    updateSessionHint("マイクを停止しました。再開するにはもう一度押してください");
+    return;
+  }
+
+  try {
+    await mediaHandler.startAudio((data) => {
+      if (geminiClient.isConnected()) {
+        geminiClient.send(data);
+      }
+    });
+    setControlState(micBtn, CONTROL_COPY.mic.active, true);
+    updateSessionHint("マイク入力中です。自然に話しかけてください");
+  } catch (error) {
+    alert("音声入力を開始できませんでした");
   }
 };
 
 cameraBtn.onclick = async () => {
-  if (cameraBtn.textContent === "Stop Camera") {
-    mediaHandler.stopVideo(videoPreview);
-    cameraBtn.textContent = "Start Camera";
-    screenBtn.textContent = "Share Screen";
-    videoPlaceholder.classList.remove("hidden");
-  } else {
-    // If another stream is active (e.g. Screen), stop it first
-    if (mediaHandler.videoStream) {
-      mediaHandler.stopVideo(videoPreview);
-      screenBtn.textContent = "Share Screen";
-    }
+  if (currentMediaMode === "camera") {
+    stopVisualStream();
+    updateSessionHint("カメラ送信を停止しました");
+    return;
+  }
 
-    try {
-      await mediaHandler.startVideo(videoPreview, (base64Data) => {
-        if (geminiClient.isConnected()) {
-          geminiClient.sendImage(base64Data);
-        }
-      });
-      cameraBtn.textContent = "Stop Camera";
-      screenBtn.textContent = "Share Screen";
-      videoPlaceholder.classList.add("hidden");
-    } catch (e) {
-      alert("Could not access camera");
-    }
+  if (currentMediaMode === "screen") {
+    stopVisualStream();
+  }
+
+  try {
+    await mediaHandler.startVideo(videoPreview, (base64Data) => {
+      if (geminiClient.isConnected()) {
+        geminiClient.sendImage(base64Data);
+      }
+    });
+    currentMediaMode = "camera";
+    videoPlaceholder.classList.add("hidden");
+    setControlState(cameraBtn, CONTROL_COPY.camera.active, true);
+    setControlState(screenBtn, CONTROL_COPY.screen.idle, false);
+    updateSessionHint("カメラ映像を送信中です");
+  } catch (error) {
+    alert("カメラにアクセスできませんでした");
   }
 };
 
 screenBtn.onclick = async () => {
-  if (screenBtn.textContent === "Stop Sharing") {
-    mediaHandler.stopVideo(videoPreview);
-    screenBtn.textContent = "Share Screen";
-    cameraBtn.textContent = "Start Camera";
-    videoPlaceholder.classList.remove("hidden");
-  } else {
-    // If another stream is active (e.g. Camera), stop it first
-    if (mediaHandler.videoStream) {
-      mediaHandler.stopVideo(videoPreview);
-      cameraBtn.textContent = "Start Camera";
-    }
-
-    try {
-      await mediaHandler.startScreen(
-        videoPreview,
-        (base64Data) => {
-          if (geminiClient.isConnected()) {
-            geminiClient.sendImage(base64Data);
-          }
-        },
-        () => {
-          // onEnded callback (e.g. user stopped sharing from browser)
-          screenBtn.textContent = "Share Screen";
-          videoPlaceholder.classList.remove("hidden");
-        }
-      );
-      screenBtn.textContent = "Stop Sharing";
-      cameraBtn.textContent = "Start Camera";
-      videoPlaceholder.classList.add("hidden");
-    } catch (e) {
-      alert("Could not share screen");
-    }
+  if (currentMediaMode === "screen") {
+    stopVisualStream();
+    updateSessionHint("画面共有を停止しました");
+    return;
   }
-};
 
-sendBtn.onclick = sendText;
-textInput.onkeypress = (e) => {
-  if (e.key === "Enter") sendText();
+  if (currentMediaMode === "camera") {
+    stopVisualStream();
+  }
+
+  try {
+    await mediaHandler.startScreen(
+      videoPreview,
+      (base64Data) => {
+        if (geminiClient.isConnected()) {
+          geminiClient.sendImage(base64Data);
+        }
+      },
+      () => {
+        stopVisualStream();
+        updateSessionHint("画面共有が終了しました");
+      }
+    );
+    currentMediaMode = "screen";
+    videoPlaceholder.classList.add("hidden");
+    setControlState(screenBtn, CONTROL_COPY.screen.active, true);
+    setControlState(cameraBtn, CONTROL_COPY.camera.idle, false);
+    updateSessionHint("画面を共有中です");
+  } catch (error) {
+    alert("画面共有を開始できませんでした");
+  }
 };
 
 function sendText() {
-  const text = textInput.value;
-  if (text && geminiClient.isConnected()) {
-    geminiClient.sendText(text);
-    appendMessage("user", text);
-    textInput.value = "";
+  const text = textInput.value.trim();
+  if (!text || !geminiClient.isConnected()) {
+    return;
   }
+
+  geminiClient.sendText(text);
+  appendMessage("user", text);
+  textInput.value = "";
+  currentUserMessageDiv = null;
+  currentGeminiMessageDiv = null;
+  updateSessionHint("テキストを送信しました。Gemini の応答を待っています");
 }
+
+sendBtn.onclick = sendText;
+textInput.onkeypress = (event) => {
+  if (event.key === "Enter") {
+    sendText();
+  }
+};
 
 function resetUI() {
   authSection.classList.remove("hidden");
@@ -218,23 +323,38 @@ function resetUI() {
   sessionEndSection.classList.add("hidden");
 
   mediaHandler.stopAudio();
-  mediaHandler.stopVideo(videoPreview);
-  videoPlaceholder.classList.remove("hidden");
+  mediaHandler.stopAudioPlayback();
+  stopVisualStream();
+  resetControlStates();
 
-  micBtn.textContent = "Start Mic";
-  cameraBtn.textContent = "Start Camera";
-  screenBtn.textContent = "Share Screen";
+  currentGeminiMessageDiv = null;
+  currentUserMessageDiv = null;
   chatLog.innerHTML = "";
+  chatLog.appendChild(chatEmptyState);
+  showEmptyState();
+  textInput.value = "";
   connectBtn.disabled = false;
+
+  updateVoiceDescription();
+  setStatus("未接続", "disconnected", "まずは声を選んで接続してください");
 }
 
 function showSessionEnd() {
   appSection.classList.add("hidden");
   sessionEndSection.classList.remove("hidden");
   mediaHandler.stopAudio();
-  mediaHandler.stopVideo(videoPreview);
+  mediaHandler.stopAudioPlayback();
+  stopVisualStream();
+  resetControlStates();
 }
 
 restartBtn.onclick = () => {
   resetUI();
 };
+
+voiceSelect.onchange = () => {
+  updateVoiceDescription();
+};
+
+updateVoiceDescription();
+resetControlStates();
