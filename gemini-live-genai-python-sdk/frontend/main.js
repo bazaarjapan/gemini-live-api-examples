@@ -54,6 +54,27 @@ const voiceDescriptions = {
   Aoede: "上品でなめらかな話し方",
 };
 
+function isLikelyJapaneseText(text) {
+  if (!text) {
+    return false;
+  }
+
+  const normalized = text.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const japaneseMatches =
+    normalized.match(/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/gu) || [];
+  const latinMatches = normalized.match(/[A-Za-z]/g) || [];
+
+  if (japaneseMatches.length === 0) {
+    return latinMatches.length === 0;
+  }
+
+  return japaneseMatches.length >= latinMatches.length;
+}
+
 function setStatus(text, tone, detail) {
   statusDiv.textContent = text;
   statusDiv.className = `status ${tone}`;
@@ -133,6 +154,11 @@ function handleJsonMessage(msg) {
   }
 
   if (msg.type === "user") {
+    if (!isLikelyJapaneseText(msg.text)) {
+      updateSessionHint("音声は日本語として処理中です。必要なら短くはっきり話してください");
+      return;
+    }
+
     if (currentUserMessageDiv) {
       currentUserMessageDiv.textContent += msg.text;
       chatLog.scrollTop = chatLog.scrollHeight;
