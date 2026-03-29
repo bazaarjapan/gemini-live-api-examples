@@ -36,13 +36,14 @@ class GeminiLive:
         config = types.LiveConnectConfig(
             response_modalities=[types.Modality.AUDIO],
             speech_config=types.SpeechConfig(
+                language_code="ja-JP",
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
                         voice_name=self.voice_name
                     )
                 )
             ),
-            system_instruction=types.Content(parts=[types.Part(text="You are a helpful AI assistant for live conversation demos. Always respond in natural Japanese only. Keep responses concise, clear, and conversational. Do not switch to English unless the user explicitly asks for translation. You can see the user's camera or screen which is shared as realtime input images with you.")]),
+            system_instruction=types.Content(parts=[types.Part(text="You are a helpful AI assistant for live conversation demos. Always respond in natural Japanese only. Treat the user's spoken input as Japanese and keep speech recognition and interpretation in Japanese whenever possible. If an utterance is ambiguous, assume Japanese rather than another language. Do not switch to English or any other language unless the user explicitly asks for translation. Keep responses concise, clear, and conversational. You can see the user's camera or screen which is shared as realtime input images with you.")]),
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
             realtime_input_config=types.RealtimeInputConfig(

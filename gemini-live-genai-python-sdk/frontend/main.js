@@ -171,6 +171,7 @@ const geminiClient = new GeminiClient({
       `System: 日本語で簡潔に自己紹介してください。
        このデモは Gemini Live API の会話デモであることを伝えてください。
        現在の声のキャラクターは「${voiceSelect.value}（${voiceDescriptions[voiceSelect.value]}）」です。
+       音声入力は日本語として解釈し、日本語だけで応答してください。
        返答は常に自然な日本語だけを使ってください。`
     );
   },
